@@ -59,7 +59,7 @@ class Program:
         
         pos=nx.spring_layout(G)
         nx.draw_networkx_edge_labels(G,pos,edge_labels=edge_labels)
-        nx.draw(G,pos, node_color = values, node_size=500,edge_color=edge_colors,edge_cmap=plt.cm.Reds,with_labels=True)
+        nx.draw(G,pos, node_color = values, node_size=300,edge_color=edge_colors,edge_cmap=plt.cm.Reds,with_labels=True)
         pylab.show()
 
     # def viewPlot(self):
@@ -178,6 +178,7 @@ class Program:
             print("Không thể tìm được đường đi giữa điểm 2 điểm: 0 và ",self.arrResult[1])
         else:
             print("Đường đi giữ 2 điểm: ",self.arrResult.__str__())
+            print("Khoảng cách: ",dist[self.countPoint-1])
 
 main = Program()
 main.inputAll()
