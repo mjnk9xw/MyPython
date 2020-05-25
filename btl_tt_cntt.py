@@ -127,6 +127,8 @@ class Program:
         print('processing ...............')
         dist = [100000] * self.countPoint
         dist[src] = 0
+        parent = [0] * self.countPoint
+        parent[0] = -1
         checkVisit = [False] * self.countPoint 
    
         for cout in range(self.countPoint): 
@@ -137,17 +139,30 @@ class Program:
                 self.arrResult.append(u)
                 if u == endpoint:
                     print(self.arrResult)
-                    return 
+                    # return 
                 for v in range(self.countPoint): 
+                    
                     if self.graph[u][v] > 0 and checkVisit[v] == False and dist[v] > dist[u] + self.graph[u][v] and self.listWay[u][v] == 1: 
                         dist[v] = dist[u] + self.graph[u][v]
-            else:
-                popIndex = len(self.arrResult)
-                popData = self.arrResult.pop(popIndex)
-                checkVisit[popData] = False
-                for v in range(self.countPoint):
-                    if self.graph[u][v] > 0 and checkVisit[v] == False and dist[v] > dist[u] + self.graph[u][v] and self.listWay[u][v] == 1: 
-                        dist[v] = dist[u] - self.graph[u][v]
+                        parent[v] = u
+
+        self.printSolution(dist,parent)
+
+    def printPath(self, parent, j): 
+          
+        #Base Case : If j is source 
+        if parent[j] == -1 :  
+            print(j)
+            return
+        self.printPath(parent , parent[j]) 
+        print(j)
+        
+    def printSolution(self, dist, parent): 
+        src = 0
+        print("Vertex \t\tDistance from Source\tPath") 
+        for i in range(1, len(dist)): 
+            print("\n%d --> %d \t\t%d \t\t\t\t\t" % (src, i, dist[i])), 
+            self.printPath(parent,i) 
 
 main = Program()
 main.inputAll()
