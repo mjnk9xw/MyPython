@@ -115,10 +115,7 @@ class cifar100vgg:
 
 
     def normalize(self,X_train,X_test):
-        #this function normalize inputs for zero mean and unit variance
-        # it is used when training a model.
-        # Input: training set and test set
-        # Output: normalized training set and test set according to the trianing set statistics.
+
         mean = np.mean(X_train,axis=(0,1,2,3))
         std = np.std(X_train, axis=(0, 1, 2, 3))
         print(mean)
@@ -128,11 +125,6 @@ class cifar100vgg:
         return X_train, X_test
 
     def normalize_production(self,x):
-        #this function is used to normalize instances in production according to saved training set statistics
-        # Input: X - a training set
-        # Output X - a normalized training set according to normalization constants.
-
-        #these values produced during first training and are general for the standard cifar10 training set normalization
         mean = 121.936
         std = 68.389
         return (x-mean)/(std+1e-7)
@@ -162,11 +154,12 @@ class cifar100vgg:
         x_train, y_train = x_train[:40000,:], y_train[:40000]
 
         # normalize
-        x_train, x_test = self.normalize(x_train, x_test)
+        x_train, x_val = self.normalize(x_train, x_val)
 
         #
         y_train = keras.utils.to_categorical(y_train, self.num_classes)
         y_val = keras.utils.to_categorical(y_val, self.num_classes)
+        y_test = keras.utils.to_categorical(y_test, self.num_classes)
 
 
         def lr_scheduler(epoch):
