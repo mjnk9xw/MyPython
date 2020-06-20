@@ -1,0 +1,1 @@
+{"trial_id": "9804d22aa9e8f488def15fda841b0047", "hyperparameters": {"space": [{"class_name": "Choice", "config": {"name": "pooling_1", "default": "avg", "values": ["avg", "max"], "ordered": false}}], "values": {"pooling_1": "avg"}}, "metrics": {"metrics": {}}, "score": null, "best_step": null, "status": "RUNNING"}
