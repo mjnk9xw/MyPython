@@ -41,16 +41,16 @@ x_test = x_test.astype('float32')
 # normalize (0-1)
 x_train /= 255
 x_test /= 255
-print(x_train.shape[0], 'train samples')
-print(x_test.shape[0], 'test samples')
+# print(x_train.shape[0], 'train samples')
+# print(x_test.shape[0], 'test samples')
 
 # convert class vectors to binary class matrices
-print(x_train[0])
-print(y_train[0])
+# print(x_train[0])
+# print(y_train[0])
 y_train = keras.utils.to_categorical(y_train, num_classes)
 y_test = keras.utils.to_categorical(y_test, num_classes)
-print(y_train[0])
-print(x_train.shape[1:])
+# print(y_train[0])
+# print(x_train.shape[1:])
 
 inputs = Input(x_train.shape[1:])
 x = Conv2D(16, (3, 3), padding='same')(inputs)
@@ -62,6 +62,7 @@ channels = [16, 32, 64]
 # Define Model resnet
 for c in channels:
     for i in range(n):
+        print('layer = ', c, i)
         subsampling = i == 0 and c > 16
         strides = (2, 2) if subsampling else (1, 1)
         y = Conv2D(c, kernel_size=(3, 3), padding="same", strides=strides)(x)
@@ -71,6 +72,7 @@ for c in channels:
         y = BatchNormalization()(y)        
         if subsampling:
             x = Conv2D(c, kernel_size=(1, 1), strides=(2, 2), padding="same")(x)
+            print('subsampling = ',c,i)
         x = Add()([x, y])
         x = Activation('relu')(x)
 
@@ -85,7 +87,7 @@ model.summary()
 history = model.fit(x_train, y_train,
             batch_size=batch_size,
             epochs=epochs,
-            verbose=1,
+            verbose=2,
             validation_data=(x_test, y_test))
 
 plt.ylabel('loss')

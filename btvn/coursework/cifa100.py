@@ -1,221 +1,124 @@
-from __future__ import print_function
-import keras
+from tensorflow.keras.applications.resnet50 import ResNet50, preprocess_input
+import tensorflow.keras as keras
+from tensorflow.keras.models import Model, Sequential
+from tensorflow.keras.layers import Input, UpSampling2D, Flatten, BatchNormalization, Dense, Dropout, GlobalAveragePooling2D
+from tensorflow.keras import optimizers
 from keras.datasets import cifar100
-from keras.preprocessing.image import ImageDataGenerator
-from keras.models import Sequential
-from keras.layers import Dense, Dropout, Activation, Flatten
-from keras.layers import Conv2D, MaxPooling2D, BatchNormalization
-from keras import optimizers
+import tensorflow as tf
+from keras.utils import np_utils
 import numpy as np
-from keras.layers.core import Lambda
-from keras import backend as K
-from keras import regularizers
 import matplotlib.pyplot as plt
-
-class cifar100vgg:
-    def __init__(self,train=True):
-        self.num_classes = 100
-        self.weight_decay = 0.0005
-        self.x_shape = [32,32,3]
-
-        self.model = self.build_model()
-        if train:
-            self.model = self.train(self.model)
-        else:
-            self.model.load_weights('cifar100vgg.h5')
+import time
+from skimage.transform import resize
+from keras.applications.resnet50 import preprocess_input, decode_predictions
+from keras.preprocessing.image import ImageDataGenerator
 
 
-    def build_model(self):
-        # Build the network of vgg for 10 classes with massive dropout and weight decay as described in the paper.
+num_classes = 100
+nb_epochs = 15
 
-        model = Sequential()
-        weight_decay = self.weight_decay
+(x_train, y_train), (x_test, y_test) = cifar100.load_data()
 
-        model.add(Conv2D(64, (3, 3), padding='same',
-                         input_shape=self.x_shape,kernel_regularizer=regularizers.l2(weight_decay)))
-        model.add(Activation('relu'))
-        model.add(BatchNormalization())
+# random data
+from sklearn.model_selection import train_test_split
+x_train, x_val, y_train, y_val = train_test_split(x_train, y_train,
+                                                    test_size=0.2,
+                                                    random_state=0,
+                                                    stratify=y_train)
+print('random data = ',x_train.shape,x_val.shape,y_train.shape,y_val.shape)
+#Pre-process the data
+x_train = preprocess_input(x_train)
+x_val = preprocess_input(x_val)
 
-        model.add(Conv2D(64, (3, 3), padding='same',kernel_regularizer=regularizers.l2(weight_decay)))
-        model.add(Activation('relu'))
-        model.add(BatchNormalization())
+# datagen = ImageDataGenerator(preprocessing_function=get_random_eraser(v_l=0, v_h=1, pixel_level=True))
+# datagen.fit(x_train)
+aug_train = ImageDataGenerator(rescale=1./255, rotation_range=30, width_shift_range=0.1, height_shift_range=0.1, shear_range=0.2, 
+                         zoom_range=0.2, horizontal_flip=True, fill_mode='nearest')
+# augementation cho val
+aug_val= ImageDataGenerator(rescale=1./255)
 
-        model.add(MaxPooling2D(pool_size=(2, 2)))
+'''
+Vẽ biểu đồ dataset
+'''
+import matplotlib.pyplot as plt
+n, bins, patches = plt.hist(x=y_val[:], bins='auto', color='#0504aa',
+                            alpha=0.7, rwidth=0.85)
+n, bins, patches = plt.hist(x=y_train[:], bins='auto', color='#607c8e',
+                            alpha=0.7, rwidth=0.85)
+plt.grid(axis='y', alpha=0.75)
+plt.xlabel('y')
+plt.ylabel('number')
+plt.title('Histogram dataset')
+maxfreq = n.max()
+# Set a clean upper y-axis limit.
+plt.ylim(ymax=np.ceil(maxfreq / 10) * 10 if maxfreq % 10 else maxfreq + 10)
+plt.show()
 
-        model.add(Conv2D(128, (3, 3), padding='same',kernel_regularizer=regularizers.l2(weight_decay)))
-        model.add(Activation('relu'))
-        model.add(BatchNormalization())
+y_train = np_utils.to_categorical(y_train, num_classes)
+y_val = np_utils.to_categorical(y_val, num_classes)
+y_test = np_utils.to_categorical(y_test, num_classes)
 
-        model.add(Conv2D(128, (3, 3), padding='same',kernel_regularizer=regularizers.l2(weight_decay)))
-        model.add(Activation('relu'))
-        model.add(BatchNormalization())
+resnet_model = ResNet50(weights='imagenet', include_top=False, input_shape=(224, 224, 3))
 
-        model.add(MaxPooling2D(pool_size=(2, 2)))
+for layer in resnet_model.layers:
+    if isinstance(layer, BatchNormalization):
+        layer.trainable = True
+    else:
+        layer.trainable = False
 
-        model.add(Conv2D(256, (3, 3), padding='same',kernel_regularizer=regularizers.l2(weight_decay)))
-        model.add(Activation('relu'))
-        model.add(BatchNormalization())
-        model.add(Dropout(0.4))
+model = Sequential()
+model.add(UpSampling2D())
+model.add(UpSampling2D())
+model.add(UpSampling2D())
+model.add(resnet_model)
+model.add(GlobalAveragePooling2D())
+model.add(Dense(256, activation='relu'))
+model.add(Dropout(.25))
+model.add(BatchNormalization())
+model.add(Dense(num_classes, activation='softmax'))
 
-        model.add(Conv2D(256, (3, 3), padding='same',kernel_regularizer=regularizers.l2(weight_decay)))
-        model.add(Activation('relu'))
-        model.add(BatchNormalization())
-        model.add(Dropout(0.4))
+model.compile(loss='categorical_crossentropy',optimizer='adam',metrics=['accuracy'])
 
-        model.add(Conv2D(256, (3, 3), padding='same',kernel_regularizer=regularizers.l2(weight_decay)))
-        model.add(Activation('relu'))
-        model.add(BatchNormalization())
+t=time.time()
+historytemp = model.fit_generator(aug_train.flow(x_train, y_train,
+                                  batch_size=64),
+                                  steps_per_epoch=x_train.shape[0] // 64,
+                                  epochs=15,
+                                  validation_data=(aug_val.flow(x_val, y_val, batch_size=64)),
+                                  validation_steps=len(x_val)//64,)
+print('Training time: %s' % (t - time.time()))
 
-        model.add(MaxPooling2D(pool_size=(2, 2)))
+model.summary()
 
+!pip install h5py
+model.save('model.h5')
+from google.colab import files
+files.download("model.h5")
 
-        model.add(Conv2D(512, (3, 3), padding='same',kernel_regularizer=regularizers.l2(weight_decay)))
-        model.add(Activation('relu'))
-        model.add(BatchNormalization())
-        model.add(Dropout(0.4))
+new_model = tf.keras.models.load_model('model.h5')
 
-        model.add(Conv2D(512, (3, 3), padding='same',kernel_regularizer=regularizers.l2(weight_decay)))
-        model.add(Activation('relu'))
-        model.add(BatchNormalization())
-        model.add(Dropout(0.4))
+# Check its architecture
+# new_model.summary()
+x_test = preprocess_input(x_test)
+loss, acc = new_model.evaluate(x_test,  y_test, verbose=1)
+print('[accuracy_test]: {:5.2f}%'.format(100*acc))
 
-        model.add(Conv2D(512, (3, 3), padding='same',kernel_regularizer=regularizers.l2(weight_decay)))
-        model.add(Activation('relu'))
-        model.add(BatchNormalization())
-
-        model.add(MaxPooling2D(pool_size=(2, 2)))
-
-
-        model.add(Conv2D(512, (3, 3), padding='same',kernel_regularizer=regularizers.l2(weight_decay)))
-        model.add(Activation('relu'))
-        model.add(BatchNormalization())
-        model.add(Dropout(0.4))
-
-        model.add(Conv2D(512, (3, 3), padding='same',kernel_regularizer=regularizers.l2(weight_decay)))
-        model.add(Activation('relu'))
-        model.add(BatchNormalization())
-        model.add(Dropout(0.4))
-
-        model.add(Conv2D(512, (3, 3), padding='same',kernel_regularizer=regularizers.l2(weight_decay)))
-        model.add(Activation('relu'))
-        model.add(BatchNormalization())
-
-        model.add(MaxPooling2D(pool_size=(2, 2)))
-        model.add(Dropout(0.5))
-
-        model.add(Flatten())
-        model.add(Dense(512,kernel_regularizer=regularizers.l2(weight_decay)))
-        model.add(Activation('relu'))
-        model.add(BatchNormalization())
-
-        model.add(Dropout(0.5))
-        model.add(Dense(self.num_classes))
-        model.add(Activation('softmax'))
-        return model
-
-
-    def normalize(self,X_train,X_test):
-
-        mean = np.mean(X_train,axis=(0,1,2,3))
-        std = np.std(X_train, axis=(0, 1, 2, 3))
-        print(mean)
-        print(std)
-        X_train = (X_train-mean)/(std+1e-7)
-        X_test = (X_test-mean)/(std+1e-7)
-        return X_train, X_test
-
-    def normalize_production(self,x):
-        mean = 121.936
-        std = 68.389
-        return (x-mean)/(std+1e-7)
-
-    def predict(self,x,normalize=True,batch_size=50):
-        if normalize:
-            x = self.normalize_production(x)
-        return self.model.predict(x,batch_size)
-
-    def train(self,model):
-
-        #training parameters
-        batch_size = 128
-        maxepoches = 250
-        learning_rate = 0.1
-        lr_decay = 1e-6
-        lr_drop = 20
-
-        # The data, shuffled and split between train and test sets:
-        (x_train, y_train), (x_test, y_test) = cifar100.load_data()
-        x_train = x_train.astype('float32')
-        x_test = x_test.astype('float32')
-
-        # x_train -> x_train + x_val
-        # y_train -> y_train + y_val
-        x_val, y_val = x_train[40000:50000,:], y_train[40000:50000]
-        x_train, y_train = x_train[:40000,:], y_train[:40000]
-
-        # normalize
-        x_train, x_val = self.normalize(x_train, x_val)
-
-        #
-        y_train = keras.utils.to_categorical(y_train, self.num_classes)
-        y_val = keras.utils.to_categorical(y_val, self.num_classes)
-        y_test = keras.utils.to_categorical(y_test, self.num_classes)
-
-
-        def lr_scheduler(epoch):
-            return learning_rate * (0.5 ** (epoch // lr_drop))
-        reduce_lr = keras.callbacks.LearningRateScheduler(lr_scheduler)
-
-
-        #data augmentation
-        datagen = ImageDataGenerator(
-            featurewise_center=False,  # set input mean to 0 over the dataset
-            samplewise_center=False,  # set each sample mean to 0
-            featurewise_std_normalization=False,  # divide inputs by std of the dataset
-            samplewise_std_normalization=False,  # divide each input by its std
-            zca_whitening=False,  # apply ZCA whitening
-            rotation_range=15,  # randomly rotate images in the range (degrees, 0 to 180)
-            width_shift_range=0.1,  # randomly shift images horizontally (fraction of total width)
-            height_shift_range=0.1,  # randomly shift images vertically (fraction of total height)
-            horizontal_flip=True,  # randomly flip images
-            vertical_flip=False)  # randomly flip images
-        # (std, mean, and principal components if ZCA whitening is applied).
-        datagen.fit(x_train)
-
-
-
-        #optimization details
-        sgd = optimizers.SGD(lr=learning_rate, decay=lr_decay, momentum=0.9, nesterov=True)
-        model.compile(loss='categorical_crossentropy', optimizer=sgd,metrics=['accuracy'])
-
-
-        # training process in a for loop with learning rate drop every 25 epoches.
-
-        history = model.fit_generator(datagen.flow(x_train, y_train,
-                                         batch_size=batch_size),
-                            steps_per_epoch=x_train.shape[0] // batch_size,
-                            epochs=maxepoches,
-                            validation_data=(x_val, y_val),callbacks=[reduce_lr],verbose=1)
-        model.save_weights('cifar100vgg.h5')
-
-        predicted_x = model.predict(x_test)
-        residuals = (np.argmax(predicted_x,1)!=np.argmax(y_test,1))
-        loss = sum(residuals)/len(residuals)
-        print("the validation 0/1 loss is: ",loss)
-
-        # history
-        plt.plot(np.arange(0, maxepoches), history.history['loss'], label='training loss')
-        plt.plot(np.arange(0, maxepoches), history.history['val_loss'], label='validation loss')
-        plt.plot(np.arange(0, maxepoches), history.history['accuracy'], label='accuracy')
-        plt.plot(np.arange(0, maxepoches), history.history['val_accuracy'], label='validation accuracy')
-        plt.title('Accuracy and Loss')
-        plt.xlabel('Epoch')
-        plt.ylabel('Loss|Accuracy')
-        plt.legend()
-        plt.show()
-
-
-        return model
-
-if __name__ == '__main__':
-    model = cifar100vgg()
+import matplotlib.pyplot as plt
+# list all data in history
+print(historytemp.history.keys())
+# summarize history for accuracy
+plt.plot(historytemp.history['accuracy'])
+plt.plot(historytemp.history['val_accuracy'])
+plt.title('model accuracy')
+plt.ylabel('accuracy')
+plt.xlabel('epoch')
+plt.legend(['train', 'test'], loc='upper left')
+plt.show()
+# summarize history for loss
+plt.plot(historytemp.history['loss'])
+plt.plot(historytemp.history['val_loss'])
+plt.title('model loss')
+plt.ylabel('loss')
+plt.xlabel('epoch')
+plt.legend(['train', 'test'], loc='upper left')
+plt.show()
