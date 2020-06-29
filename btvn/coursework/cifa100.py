@@ -90,10 +90,10 @@ print('Training time: %s' % (t - time.time()))
 
 model.summary()
 
-!pip install h5py
-model.save('model.h5')
-from google.colab import files
-files.download("model.h5")
+# !pip install h5py
+# model.save('model.h5')
+# from google.colab import files
+# files.download("model.h5")
 
 new_model = tf.keras.models.load_model('model.h5')
 

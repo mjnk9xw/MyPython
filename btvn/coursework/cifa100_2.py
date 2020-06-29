@@ -1,82 +1,57 @@
-from tensorflow.keras.datasets import cifar100
-# Load CIFAR-100 data
-(input_train, target_train), (input_test, target_test) = cifar100.load_data()
-from tensorflow.keras.datasets import cifar100
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, Flatten, Conv2D, MaxPooling2D
-from tensorflow.keras.losses import sparse_categorical_crossentropy
-from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.applications.resnet50 import ResNet50, preprocess_input
+import tensorflow.keras as keras
+from tensorflow.keras.models import Model, Sequential
+from tensorflow.keras.layers import Input, UpSampling2D, Flatten, BatchNormalization, Dense, Dropout, GlobalAveragePooling2D
+from tensorflow.keras import optimizers
+from keras.datasets import cifar100
+import tensorflow as tf
+from keras.utils import np_utils
+import numpy as np
 import matplotlib.pyplot as plt
+import time
+from skimage.transform import resize
+from keras.applications.resnet50 import preprocess_input, decode_predictions
+from keras.preprocessing.image import ImageDataGenerator
 
-# Model configuration
-batch_size = 50
-img_width, img_height, img_num_channels = 32, 32, 3
-loss_function = sparse_categorical_crossentropy
-no_classes = 100
-no_epochs = 100
-optimizer = Adam()
-validation_split = 0.2
-verbosity = 1
 
-# Load CIFAR-100 data
-(input_train, target_train), (input_test, target_test) = cifar100.load_data()
+num_classes = 100
+nb_epochs = 15
 
-# Determine shape of the data
-input_shape = (img_width, img_height, img_num_channels)
+(x_train, y_train), (x_test, y_test) = cifar100.load_data()
 
-# Parse numbers as floats
-input_train = input_train.astype('float32')
-input_test = input_test.astype('float32')
+# random data
+from sklearn.model_selection import train_test_split
+x_train, x_val, y_train, y_val = train_test_split(x_train, y_train,
+                                                    test_size=0.2,
+                                                    random_state=0,
+                                                    stratify=y_train)
+print('random data = ',x_train.shape,x_val.shape,y_train.shape,y_val.shape)
+#Pre-process the data
+x_train = preprocess_input(x_train)
+x_val = preprocess_input(x_val)
 
-# Normalize data
-input_train = input_train / 255
-input_test = input_test / 255
+# datagen = ImageDataGenerator(preprocessing_function=get_random_eraser(v_l=0, v_h=1, pixel_level=True))
+# datagen.fit(x_train)
+aug_train = ImageDataGenerator(rescale=1./255, rotation_range=30, width_shift_range=0.1, height_shift_range=0.1, shear_range=0.2, 
+                         zoom_range=0.2, horizontal_flip=True, fill_mode='nearest')
+# augementation cho val
+aug_val= ImageDataGenerator(rescale=1./255)
 
-# x_train -> x_train + x_val
-# y_train -> y_train + y_val
-input_val, target_val = input_train[40000:50000,:], target_train[40000:50000]
-input_train, target_train = input_train[:40000,:], target_train[:40000]
-
-# Create the model
-model = Sequential()
-model.add(Conv2D(32, kernel_size=(3, 3), activation='relu', input_shape=input_shape))
-model.add(MaxPooling2D(pool_size=(2, 2)))
-model.add(Conv2D(64, kernel_size=(3, 3), activation='relu'))
-model.add(MaxPooling2D(pool_size=(2, 2)))
-model.add(Conv2D(128, kernel_size=(3, 3), activation='relu'))
-model.add(MaxPooling2D(pool_size=(2, 2)))
-model.add(Flatten())
-model.add(Dense(256, activation='relu'))
-model.add(Dense(128, activation='relu'))
-model.add(Dense(no_classes, activation='softmax'))
-
-# Compile the model
-model.compile(loss=loss_function,
-              optimizer=optimizer,
-              metrics=['accuracy'])
-
-# Fit data to model
-history = model.fit(input_train, target_train,
-            batch_size=batch_size,
-            epochs=no_epochs,
-            verbose=verbosity,
-            validation_split=validation_split)
-
-# Generate generalization metrics
-score = model.evaluate(input_val, target_val, verbose=0)
-print(f'Test loss: {score[0]} / Test accuracy: {score[1]}')
-
-# Visualize history
-# Plot history: Loss
-plt.plot(history.history['val_loss'])
-plt.title('Validation loss history')
-plt.ylabel('Loss value')
-plt.xlabel('No. epoch')
-plt.show()
-
-# Plot history: Accuracy
-plt.plot(history.history['val_accuracy'])
-plt.title('Validation accuracy history')
-plt.ylabel('Accuracy value (%)')
-plt.xlabel('No. epoch')
+'''
+Vẽ biểu đồ dataset
+'''
+import matplotlib.pyplot as plt
+# n, bins, patches = plt.hist(x=y_val[:], bins='auto', color='#0504aa',
+#                             alpha=0.7, rwidth=0.85)
+# n, bins, patches = plt.hist(x=y_train[:], bins='auto', color='#607c8e',
+#                             alpha=0.7, rwidth=0.85)
+n, bins, patches = plt.hist(x=y_test[:], bins='auto', color='#607c8e',
+                            alpha=0.7, rwidth=0.85)
+plt.grid(axis='y', alpha=0.75)
+plt.xlabel('y')
+plt.ylabel('number')
+plt.title('Histogram dataset')
+maxfreq = n.max()
+# Set a clean upper y-axis limit.
+plt.ylim(ymax=np.ceil(maxfreq / 10) * 10 if maxfreq % 10 else maxfreq + 10)
 plt.show()
